@@ -47,6 +47,9 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@v3
+        with:
+          # Varsayılan paket listesi artık yok olan `tools` paketini içeriyor ve adımı düşürüyor.
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
 
       # Repo PUBLIC: google-services.json ve debug keystore depoda yok, CI'da geçici üretilir.

@@ -15,6 +15,7 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import org.junit.jupiter.api.DisplayName
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -40,12 +41,14 @@ class SigningVectorsTest {
         )
 
     @Test
+    @DisplayName("mobile-core: signing vectors version")
     fun `mobile-core signing vectors version`() {
         assertEquals(2L, v.getValue("vectors_version").jsonPrimitive.long)
         assertEquals(6, keys.size)
     }
 
     @Test
+    @DisplayName("mobile-core: canonical query vectors")
     fun `mobile-core canonical query vectors`() {
         val ok = v.section("canonical_query")
         assertTrue(ok.isNotEmpty())
@@ -59,11 +62,13 @@ class SigningVectorsTest {
     }
 
     @Test
+    @DisplayName("mobile-core: body hash vectors")
     fun `mobile-core body hash vectors`() {
         for (c in v.section("body_hash")) assertEquals(c.str("sha256_hex"), sha256Hex(B64Url.decode(c.str("body_b64u"))), c.str("id"))
     }
 
     @Test
+    @DisplayName("mobile-core: signing vectors verify")
     fun `mobile-core signing vectors verify`() {
         var valid = 0
         var invalid = 0
@@ -100,6 +105,7 @@ class SigningVectorsTest {
     }
 
     @Test
+    @DisplayName("mobile-core: envelope and revoke error vectors")
     fun `mobile-core envelope and revoke error vectors`() {
         for (c in v.section("envelope_errors")) {
             assertFailsWith<CanonicalException>(c.str("id")) { envelopeString(envelopeInput(c.getValue("input").jsonObject)) }
@@ -113,6 +119,7 @@ class SigningVectorsTest {
     }
 
     @Test
+    @DisplayName("mobile-core: canonical challenge bytes golden")
     fun `mobile-core canonical challenge bytes golden`() {
         val fields =
             linkedMapOf(
@@ -136,6 +143,7 @@ class SigningVectorsTest {
     }
 
     @Test
+    @DisplayName("mobile-core: challenge rejects injection missing and extra fields")
     fun `mobile-core challenge rejects injection missing and extra fields`() {
         val ok =
             mapOf(

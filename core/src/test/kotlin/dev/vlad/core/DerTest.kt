@@ -3,6 +3,7 @@ package dev.vlad.core
 import dev.vlad.core.crypto.B64Url
 import dev.vlad.core.crypto.Der
 import dev.vlad.core.crypto.Signatures
+import org.junit.jupiter.api.DisplayName
 import java.math.BigInteger
 import java.security.KeyPairGenerator
 import java.security.Signature
@@ -21,6 +22,7 @@ class DerTest {
     private fun keyPair() = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
 
     @Test
+    @DisplayName("mobile-core: low-S normalization signs verifiable and canonical")
     fun `mobile-core low-S normalization signs verifiable and canonical`() {
         val kp = keyPair()
         val spki = B64Url.encode(kp.public.encoded)
@@ -51,6 +53,7 @@ class DerTest {
     }
 
     @Test
+    @DisplayName("mobile-core: strict der rejects malformed")
     fun `mobile-core strict der rejects malformed`() {
         val r = BigInteger.ONE.shiftLeft(200)
         val s = BigInteger.TWO
@@ -74,6 +77,7 @@ class DerTest {
     }
 
     @Test
+    @DisplayName("mobile-core: high-S boundary")
     fun `mobile-core high-S boundary`() {
         val r = BigInteger.TEN
         assertTrue(Der.isCanonical(Der.encode(r, Der.P256_HALF_N)))

@@ -10,6 +10,7 @@ import dev.vlad.core.reduce.HomeReducer
 import dev.vlad.core.reduce.HomeState
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
+import org.junit.jupiter.api.DisplayName
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,6 +32,7 @@ class HomeReducerTest {
     ) = ev.fold(from, HomeReducer::reduce)
 
     @Test
+    @DisplayName("mobile-core: reducer states initial needs load")
     fun `mobile-core reducer states initial needs load`() {
         val s = HomeState()
         assertNull(s.home)
@@ -40,6 +42,7 @@ class HomeReducerTest {
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states loaded then fresh")
     fun `mobile-core reducer states loaded then fresh`() {
         val s = run(HomeEvent.Loaded(h17))
         assertEquals(h17, s.home)
@@ -47,6 +50,7 @@ class HomeReducerTest {
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states newer relevant event marks stale and reload clears")
     fun `mobile-core reducer states newer relevant event marks stale and reload clears`() {
         var s = run(HomeEvent.Loaded(h17), HomeEvent.Streamed(18, "task.state"))
         assertTrue(s.stale)
@@ -55,6 +59,7 @@ class HomeReducerTest {
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states replayed and old events are ignored")
     fun `mobile-core reducer states replayed and old events are ignored`() {
         val s = run(HomeEvent.Loaded(h17), HomeEvent.Streamed(17, "task.state"), HomeEvent.Streamed(3, "card.opened"))
         assertFalse(s.stale)
@@ -62,29 +67,34 @@ class HomeReducerTest {
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states chat events do not invalidate home")
     fun `mobile-core reducer states chat events do not invalidate home`() {
         val s = run(HomeEvent.Loaded(h17), HomeEvent.Streamed(40, "chat.delta"), HomeEvent.Streamed(41, "chat.done"))
         assertFalse(s.stale)
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states unknown event type is treated as relevant")
     fun `mobile-core reducer states unknown event type is treated as relevant`() {
         assertTrue(run(HomeEvent.Loaded(h17), HomeEvent.Streamed(18, "future.thing")).stale)
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states event before first load is remembered")
     fun `mobile-core reducer states event before first load is remembered`() {
         val s = run(HomeEvent.Streamed(30, "card.opened"), HomeEvent.Loaded(h17))
         assertTrue(s.stale) // yükleme sırasında daha yeni bir olay gelmiş
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states late older response does not overwrite newer home")
     fun `mobile-core reducer states late older response does not overwrite newer home`() {
         val s = run(HomeEvent.Loaded(h18), HomeEvent.Loaded(h17))
         assertEquals(h18, s.home)
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states offline keeps last home and shows banner")
     fun `mobile-core reducer states offline keeps last home and shows banner`() {
         var s = run(HomeEvent.Loaded(h17), HomeEvent.LoadFailed(null))
         assertEquals(h17, s.home)
@@ -96,6 +106,7 @@ class HomeReducerTest {
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states revoked device shows auth banner until a load succeeds")
     fun `mobile-core reducer states revoked device shows auth banner until a load succeeds`() {
         var s = run(HomeEvent.Loaded(h17), HomeEvent.LoadFailed(ErrorCode.DEVICE_REVOKED))
         assertEquals(Banner.AUTH_LOST, s.banner)
@@ -107,6 +118,7 @@ class HomeReducerTest {
     }
 
     @Test
+    @DisplayName("mobile-core: reducer states server error does not claim offline")
     fun `mobile-core reducer states server error does not claim offline`() {
         val s = run(HomeEvent.ConnectionChanged(Connection.LIVE), HomeEvent.LoadFailed(ErrorCode.RATE_LIMITED))
         assertEquals(Banner.NONE, s.banner)

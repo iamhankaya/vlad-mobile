@@ -32,6 +32,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
+import org.junit.jupiter.api.DisplayName
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -75,6 +76,7 @@ class ModelsFixtureTest {
     private fun status(f: JsonObject): Int = f.getValue("response").jsonObject.getValue("status").jsonPrimitive.int
 
     @Test
+    @DisplayName("mobile-core: api fixtures decode into models")
     fun `mobile-core api fixtures decode into models`() {
         var decoded = 0
         var errors = 0
@@ -95,6 +97,7 @@ class ModelsFixtureTest {
     }
 
     @Test
+    @DisplayName("mobile-core: all success operations are covered by a fixture")
     fun `mobile-core all success operations are covered by a fixture`() {
         val ops =
             ContractFiles.apiFixtures.filter {
@@ -104,6 +107,7 @@ class ModelsFixtureTest {
     }
 
     @Test
+    @DisplayName("mobile-core: home fixture field values")
     fun `mobile-core home fixture field values`() {
         val f = ContractFiles.apiFixtures.single { it.first == "get-home.200.json" }.second
         val home = VladJson.decodeFromJsonElement(serializer<Home>(), body(f))
@@ -116,6 +120,7 @@ class ModelsFixtureTest {
     }
 
     @Test
+    @DisplayName("mobile-core: error codes are all known")
     fun `mobile-core error codes are all known`() {
         for ((name, f) in ContractFiles.apiFixtures) {
             if (status(f) in 200..299) continue
@@ -125,6 +130,7 @@ class ModelsFixtureTest {
     }
 
     @Test
+    @DisplayName("mobile-core: prepare fixture challenge bytes match fields")
     fun `mobile-core prepare fixture challenge bytes match fields`() {
         val f = ContractFiles.apiFixtures.single { it.first == "prepare-action.200.json" }.second
         val c = VladJson.decodeFromJsonElement(serializer<Challenge>(), body(f))

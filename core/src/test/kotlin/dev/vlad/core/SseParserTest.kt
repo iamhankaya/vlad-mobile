@@ -9,6 +9,7 @@ import dev.vlad.core.sse.SseParser
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
+import org.junit.jupiter.api.DisplayName
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -26,6 +27,7 @@ class SseParserTest {
     private val stream = "id: 17\nevent: task.state\ndata: {\"seq\":17}\n\n: keepalive\n\nid: 18\ndata: ğüşiöç İ 🙂\ndata: ikinci\n\n"
 
     @Test
+    @DisplayName("mobile-core: sse parser basic")
     fun `mobile-core sse parser basic`() {
         val ev = parseAll(stream.toByteArray())
         assertEquals(
@@ -35,6 +37,7 @@ class SseParserTest {
     }
 
     @Test
+    @DisplayName("mobile-core: sse parser chunk boundary utf8")
     fun `mobile-core sse parser chunk boundary utf8`() {
         val bytes = stream.toByteArray()
         val whole = parseAll(bytes)
@@ -44,6 +47,7 @@ class SseParserTest {
     }
 
     @Test
+    @DisplayName("mobile-core: sse parser line endings cr crlf lf and split crlf")
     fun `mobile-core sse parser line endings cr crlf lf and split crlf`() {
         val expected = listOf(SseEvent(null, "message", "a"), SseEvent(null, "message", "b"))
         assertEquals(expected, parseAll("data: a\r\rdata: b\r\r".toByteArray()))
@@ -53,6 +57,7 @@ class SseParserTest {
     }
 
     @Test
+    @DisplayName("mobile-core: sse parser comments empty data and unknown fields")
     fun `mobile-core sse parser comments empty data and unknown fields`() {
         assertEquals(emptyList(), parseAll(": keepalive\n\n: x\n\n".toByteArray()))
         assertEquals(emptyList(), parseAll("event: x\n\n".toByteArray())) // data yok -> olay yok
@@ -64,6 +69,7 @@ class SseParserTest {
     }
 
     @Test
+    @DisplayName("mobile-core: sse parser tracks last event id and retry")
     fun `mobile-core sse parser tracks last event id and retry`() {
         val p = SseParser()
         p.feed("id: 5\nretry: 3000\ndata: x\n\nid: 6\n".toByteArray())
@@ -74,6 +80,7 @@ class SseParserTest {
     }
 
     @Test
+    @DisplayName("mobile-core: sse parser bom and id with nul")
     fun `mobile-core sse parser bom and id with nul`() {
         val ev = parseAll("data: a\n\n".toByteArray())
         assertEquals(listOf(SseEvent(null, "message", "a")), ev)
@@ -83,12 +90,14 @@ class SseParserTest {
     }
 
     @Test
+    @DisplayName("mobile-core: sse parser rejects overlong line")
     fun `mobile-core sse parser rejects overlong line`() {
         val p = SseParser(maxLineBytes = 16)
         assertFailsWith<SseException> { p.feed("data: ${"x".repeat(32)}\n\n".toByteArray()) }
     }
 
     @Test
+    @DisplayName("mobile-core: sse parser contract fixture decodes to Event")
     fun `mobile-core sse parser contract fixture decodes to Event`() {
         val f = ContractFiles.apiFixtures.single { it.first == "stream-events.200.json" }.second
         val text = f.getValue("response").jsonObject.getValue("body").jsonPrimitive.content
