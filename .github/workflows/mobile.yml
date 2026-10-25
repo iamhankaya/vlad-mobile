@@ -80,6 +80,25 @@ jobs:
         run: ./gradlew :app:ktlintCheck
       - name: lint + birim test + debug APK
         run: ./gradlew lintDebug testDebugUnitTest assembleDebug
+      # Roborazzi: referans görüntüler yalnız CI'da üretilir. Repoda referans yoksa kaydedilir (artifact'tan incelenir,
+      # gözden geçirilince app/src/test/screenshots'a commit'lenir); varsa %0.5 toleransla doğrulanır.
+      - name: Roborazzi (kaydet ya da doğrula)
+        run: |
+          if ls app/src/test/screenshots/*.png >/dev/null 2>&1; then
+            ./gradlew :app:verifyRoborazziDebug
+          else
+            ./gradlew :app:recordRoborazziDebug
+          fi
+      - name: Roborazzi görüntüleri
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: roborazzi-screens
+          path: |
+            app/src/test/screenshots/
+            app/build/outputs/roborazzi/
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: vlad-debug-apk
