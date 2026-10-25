@@ -1,0 +1,96 @@
+name: mobile
+
+on:
+  push:
+    branches: [master, "vlad/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: ":core (JVM, Android'siz)"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      # Android eklentisi hiç yüklenmez; ARM'da koşan geliştirme kapısı ile aynı komut.
+      - name: ":core testleri"
+        run: ./gradlew -PskipAndroid=true :core:test
+      - name: ":core ktlint + detekt"
+        run: ./gradlew -PskipAndroid=true :core:ktlintCheck :core:detekt
+      - name: Test raporu
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-test-report
+          path: core/build/reports/
+          retention-days: 7
+
+  android:
+    name: ":app (lint, birim test, debug APK)"
+    runs-on: ubuntu-24.04
+    needs: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          # Varsayılan paket listesi artık yok olan `tools` paketini içeriyor ve adımı düşürüyor.
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Repo PUBLIC: google-services.json ve debug keystore depoda yok, CI'da geçici üretilir.
+      # Yer tutucu yalnız Firebase eklentisi uygulandığında (S8b) okunur; gerçek değerler yok.
+      - name: google-services.json yer tutucusu
+        run: |
+          cat > app/google-services.json <<'JSON'
+          {
+            "project_info": { "project_number": "000000000000", "project_id": "vlad-ci-placeholder" },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                  "android_client_info": { "package_name": "dev.vlad.app" }
+                },
+                "api_key": [ { "current_key": "CI_PLACEHOLDER_NOT_A_KEY" } ]
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+      - name: Geçici debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkeypair -v -keystore ~/.android/debug.keystore -storepass android -keypass android \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 1 -dname "CN=Android Debug,O=Android,C=US"
+      - name: ktlint
+        run: ./gradlew :app:ktlintCheck
+      - name: lint + birim test + debug APK
+        run: ./gradlew lintDebug testDebugUnitTest assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vlad-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+      - name: Lint raporu
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-reports
+          path: |
+            app/build/reports/
+            core/build/reports/
+          retention-days: 7

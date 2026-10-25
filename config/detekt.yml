@@ -1,0 +1,15 @@
+# Varsayılan kurallar üstüne (buildUponDefaultConfig).
+style:
+  MagicNumber:
+    active: true
+    ignoreNumbers: ['-1', '0', '1', '2', '3', '16', '0x80', '0x7f', '0xff', '0x30', '0x02', '0x25']
+    ignoreExtensionFunctions: true
+    excludes: ['**/test/**']
+  MaxLineLength:
+    maxLineLength: 140
+  ReturnCount:
+    max: 6
+    excludeGuardClauses: true
+complexity:
+  TooManyFunctions:
+    active: false
