@@ -31,6 +31,8 @@ private class SoftwareKeyBackend(private val forceHighS: Boolean = false) : KeyB
         authRequired[alias] = requireUserAuth
     }
 
+    override fun has(alias: String): Boolean = alias in keys
+
     override fun publicKeySpki(alias: String): ByteArray = keys.getValue(alias).public.encoded
 
     override fun newSignature(alias: String): Signature {
@@ -97,7 +99,7 @@ class KeystoreSignerTest {
 
     @Test
     fun `mobile-app signer 300 signatures are strict der low-s and verify with core`() {
-        val signer = SessionSigner(SoftwareKeyBackend())
+        val signer = SessionSigner(SoftwareKeyBackend()).also { it.provision() }
         val pub = signer.publicKeyB64u()
         repeat(300) {
             val sig = signer.sign(message)
@@ -109,7 +111,7 @@ class KeystoreSignerTest {
     @Test
     fun `mobile-app signer normalizes a provider that returns high-S`() {
         val backend = SoftwareKeyBackend(forceHighS = true)
-        val signer = SessionSigner(backend)
+        val signer = SessionSigner(backend).also { it.provision() }
         // Sağlayıcının ham çıktısı gerçekten yüksek-S (testin kendisini doğrular).
         val raw = signer.newSignature().apply { update(message) }.sign()
         assertFalse("ham imza yüksek-S olmalı", Der.isCanonical(raw))
@@ -123,8 +125,8 @@ class KeystoreSignerTest {
     @Test
     fun `mobile-app approval key is distinct and requires user authentication`() {
         val backend = SoftwareKeyBackend()
-        val session = SessionSigner(backend)
-        val approval = ApprovalSigner(backend)
+        val session = SessionSigner(backend).also { it.provision() }
+        val approval = ApprovalSigner(backend).also { it.provision() }
         assertNotEquals(session.alias, approval.alias)
         assertNotEquals(session.publicKeyB64u(), approval.publicKeyB64u())
         assertEquals(false, backend.authRequired[session.alias])
@@ -140,9 +142,20 @@ class KeystoreSignerTest {
     @Test
     fun `mobile-app delete key then new key is generated`() {
         val backend = SoftwareKeyBackend()
-        val signer = SessionSigner(backend)
+        val signer = SessionSigner(backend).also { it.provision() }
         val first = signer.publicKeyB64u()
         signer.deleteKey()
+        assertFalse(signer.hasKey())
+        signer.provision()
         assertNotEquals(first, signer.publicKeyB64u())
+    }
+
+    @Test
+    fun `mobile-app missing key is an error not a silent new key`() {
+        val signer = SessionSigner(SoftwareKeyBackend())
+        assertFalse(signer.hasKey())
+        assertTrue(runCatching { signer.sign(message) }.exceptionOrNull() is KeyMissingException)
+        assertTrue(runCatching { signer.publicKeyB64u() }.exceptionOrNull() is KeyMissingException)
+        assertFalse("sessizce üretilmemeli", signer.hasKey())
     }
 }

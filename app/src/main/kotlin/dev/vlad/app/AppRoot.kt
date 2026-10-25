@@ -46,12 +46,32 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 @Composable
 fun AppRoot(container: AppContainer) {
     VladTheme {
-        var device by remember { mutableStateOf(container.store.load()) }
+        var invalidated by remember { mutableStateOf(false) }
+        var device by remember {
+            val stored = container.store.load()
+            // Kayıt var ama session anahtarı yok (örn. yedekten/aktarımdan gelen kayıt): sessizce yeni anahtar üretme.
+            mutableStateOf(
+                if (stored != null && !container.sessionSigner.hasKey()) {
+                    container.unpair()
+                    invalidated = true
+                    null
+                } else {
+                    stored
+                },
+            )
+        }
         val paired = device
         if (paired == null) {
             val vm: PairingViewModel = viewModel(factory = viewModelFactory { initializer { PairingViewModel(container) { device = it } } })
             val state by vm.state.collectAsStateWithLifecycle()
-            PairingScreen(state, vm::setAddress, vm::setCode, vm::submit, Modifier.fillMaxSize().safeDrawingPadding())
+            PairingScreen(
+                state,
+                vm::setAddress,
+                vm::setCode,
+                vm::submit,
+                Modifier.fillMaxSize().safeDrawingPadding(),
+                notice = if (invalidated) "Eşleşme geçersiz (cihaz anahtarı bulunamadı). Yeniden eşleştir." else null,
+            )
         } else {
             MainScaffold(container, paired) {
                 container.unpair()

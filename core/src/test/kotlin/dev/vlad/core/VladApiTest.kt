@@ -4,6 +4,7 @@ import dev.vlad.core.api.ApiFailure
 import dev.vlad.core.api.ApiResult
 import dev.vlad.core.api.Card
 import dev.vlad.core.api.CardKind
+import dev.vlad.core.api.ClockSync
 import dev.vlad.core.api.Home
 import dev.vlad.core.api.HttpRequest
 import dev.vlad.core.api.HttpResponse
@@ -84,8 +85,8 @@ class VladApiTest {
                 Der.encode(rs.r, Der.P256_N.subtract(rs.s))
             }
         val api = VladApi("https://vlad.example.test", t, nonce = { nonce })
-        val ex = runCatching { api.getHome(badSigner) }.exceptionOrNull()
-        assertIs<IllegalStateException>(ex)
+        val f = (api.getHome(badSigner) as ApiResult.Failed).failure
+        assertIs<ApiFailure.Signing>(f)
         assertTrue(t.requests.isEmpty())
     }
 
@@ -218,5 +219,35 @@ class VladApiTest {
                 ),
             )
         assertEquals(listOf("ci", "g-new", "q-old", "q-new"), sorted.map { it.id })
+    }
+
+    @Test
+    @DisplayName("mobile-core: signer failure becomes Signing failure and repository asks to re-pair")
+    fun signerFailure() {
+        val t = FakeTransport { error("gönderilmemeli") }
+        val broken = SessionCredentials("d-test") { throw java.security.ProviderException("keystore kayıp") }
+        val api = VladApi("https://x.test", t, nonce = { nonce })
+        assertIs<ApiFailure.Signing>((api.getHome(broken) as ApiResult.Failed).failure)
+        val checked = SessionCredentials("d-test") { throw java.security.InvalidKeyException("geçersiz") }
+        assertIs<ApiFailure.Signing>((api.getHome(checked) as ApiResult.Failed).failure)
+        assertTrue(t.requests.isEmpty())
+        val snap = HomeRepository(api, broken) { 1L }.refresh()
+        assertEquals(Banner.AUTH_LOST, snap.state.banner)
+    }
+
+    @Test
+    @DisplayName("mobile-core: clock sync accepts up to 5 minutes and halves the round trip")
+    fun clockSync() {
+        val five = ClockSync.MAX_SKEW_MS
+        // RTT 2000 ms: sunucu saati gidiş-dönüşün ortasında (before + 1000) okunmuş sayılır.
+        assertEquals(0L, ClockSync.offset(10_000, 12_000, 11_000))
+        assertEquals(five, ClockSync.offset(10_000, 12_000, 11_000 + five))
+        assertEquals(-five, ClockSync.offset(10_000, 12_000, 11_000 - five))
+        assertNull(ClockSync.offset(10_000, 12_000, 11_000 + five + 1))
+        assertNull(ClockSync.offset(10_000, 12_000, 11_000 - five - 1))
+        // Uzak gelecek (kötü sunucu +30 gün) reddedilir.
+        assertNull(ClockSync.offset(10_000, 12_000, 10_000 + 30L * 24 * 3_600_000))
+        // Saat geriye gitmişse RTT 0 sayılır.
+        assertEquals(500L, ClockSync.offset(10_000, 9_000, 10_500))
     }
 }

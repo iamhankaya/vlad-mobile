@@ -38,6 +38,7 @@ fun PairingScreen(
     onCode: (String) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
+    notice: String? = null,
 ) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -70,6 +71,7 @@ fun PairingScreen(
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
                 modifier = Modifier.fillMaxWidth(),
             )
+            notice?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
             state.error?.let {
                 Text(it.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }

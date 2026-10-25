@@ -4,6 +4,7 @@ import dev.vlad.core.api.ApiFailure
 import dev.vlad.core.api.ApiResult
 import dev.vlad.core.api.Card
 import dev.vlad.core.api.CardKind
+import dev.vlad.core.api.ErrorCode
 import dev.vlad.core.api.SessionCredentials
 import dev.vlad.core.api.VladApi
 import dev.vlad.core.reduce.Connection
@@ -47,7 +48,14 @@ class HomeRepository(
             }
             is ApiResult.Failed -> {
                 val f = r.failure
-                state = HomeReducer.reduce(state, HomeEvent.LoadFailed(f.code.takeIf { f is ApiFailure.Http && f.status < SERVER_ERROR }))
+                // İmzalanamıyorsa (anahtar kayıp/geçersiz) cihaz fiilen yetkisizdir: "yeniden eşleştir" yolu.
+                val code =
+                    when {
+                        f is ApiFailure.Signing -> ErrorCode.UNAUTHORIZED
+                        f is ApiFailure.Http && f.status < SERVER_ERROR -> f.code
+                        else -> null
+                    }
+                state = HomeReducer.reduce(state, HomeEvent.LoadFailed(code))
                 if (f is ApiFailure.Http && f.status >= SERVER_ERROR) {
                     serverStatus = f.status
                     state = HomeReducer.reduce(state, HomeEvent.ConnectionChanged(Connection.POLLING))

@@ -18,6 +18,8 @@ interface KeyBackend {
         requireUserAuth: Boolean,
     )
 
+    fun has(alias: String): Boolean
+
     /** X.509 SubjectPublicKeyInfo (DER). */
     fun publicKeySpki(alias: String): ByteArray
 
@@ -57,6 +59,8 @@ class AndroidKeyBackend : KeyBackend {
                 .setUserAuthenticationRequired(requireUserAuth)
                 .apply {
                     if (requireUserAuth) {
+                        // Cihaz kilitliyken anahtar kullanılamaz (API 28+).
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) setUnlockedDeviceRequired(true)
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                             // Zaman penceresi 0 = her imzada doğrulama (BiometricPrompt CryptoObject).
                             setUserAuthenticationParameters(
@@ -76,6 +80,8 @@ class AndroidKeyBackend : KeyBackend {
             generateKeyPair()
         }
     }
+
+    override fun has(alias: String): Boolean = store.containsAlias(alias)
 
     override fun publicKeySpki(alias: String): ByteArray =
         requireNotNull(store.getCertificate(alias)) {

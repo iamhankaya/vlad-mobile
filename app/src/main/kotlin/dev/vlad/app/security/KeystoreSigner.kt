@@ -18,17 +18,23 @@ sealed class KeystoreSigner(
     val alias: String,
     val requiresUserAuth: Boolean,
 ) {
-    /** Anahtar yoksa üretir; yalnız açık anahtarı okuyan eşleştirme akışı da bunu çağırır. */
-    fun ensureKey() = backend.ensureKey(alias, requiresUserAuth)
+    /** Anahtarı yalnız eşleştirme üretir. İmzalama yolları anahtar yoksa **sessizce yenisini üretmez** ([KeyMissingException]). */
+    fun provision() = backend.ensureKey(alias, requiresUserAuth)
+
+    fun hasKey(): Boolean = backend.has(alias)
 
     fun publicKeyB64u(): String {
-        ensureKey()
+        requireKey()
         return B64Url.encode(backend.publicKeySpki(alias))
+    }
+
+    private fun requireKey() {
+        if (!backend.has(alias)) throw KeyMissingException(alias)
     }
 
     /** `initSign` edilmiş imza nesnesi. Kullanıcı doğrulamalı anahtarda BiometricPrompt `CryptoObject`'ine verilir (S9c). */
     fun newSignature(): Signature {
-        ensureKey()
+        requireKey()
         return backend.newSignature(alias)
     }
 
@@ -48,6 +54,9 @@ sealed class KeystoreSigner(
         const val APPROVAL_ALIAS = "vlad.approval.v1"
     }
 }
+
+/** Eşleşme kayıtlı ama Keystore anahtarı yok (yedekten geri yükleme, anahtar silinmesi): yeniden eşleştirme gerekir. */
+class KeyMissingException(alias: String) : java.security.GeneralSecurityException("Keystore anahtarı yok: $alias")
 
 /** `session` anahtarı: kullanıcı doğrulaması yok, okuma/sohbet istekleri. */
 class SessionSigner(backend: KeyBackend) : KeystoreSigner(backend, SESSION_ALIAS, requiresUserAuth = false), DeviceSigner {

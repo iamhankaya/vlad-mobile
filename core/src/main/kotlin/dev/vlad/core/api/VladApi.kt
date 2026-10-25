@@ -9,6 +9,7 @@ import kotlinx.serialization.encodeToString
 import java.io.IOException
 import java.net.URI
 import java.net.URISyntaxException
+import java.security.GeneralSecurityException
 import java.security.SecureRandom
 
 class HttpRequest(
@@ -43,6 +44,9 @@ sealed interface ApiFailure {
     data class Http(val status: Int, val error: ErrorBody?) : ApiFailure
 
     data class BadResponse(val message: String) : ApiFailure
+
+    /** İmzalanamadı (Keystore hatası, anahtar yok/geçersiz, canonical olmayan imza). İstek gönderilmedi. */
+    data class Signing(val message: String) : ApiFailure
 
     /** Sunucu hata kodu (varsa); ağ hatasında `null`. */
     val code: ErrorCode? get() = (this as? Http)?.error?.code
@@ -100,6 +104,7 @@ class VladApi(
     fun getHome(creds: SessionCredentials): ApiResult<Home> = signed("GET", "/v1/home", creds) { VladJson.decodeFromString<Home>(it) }
 
     /** Zarf (`:core` [envelopeString]) `session` anahtarıyla imzalanır; yol olduğu gibi gönderilir ve imzalanır. */
+    @Suppress("TooGenericExceptionCaught")
     private fun <T> signed(
         method: String,
         path: String,
@@ -109,9 +114,18 @@ class VladApi(
         val ts = clock()
         val n = nonce()
         val message = envelopeString(EnvelopeInput(method = method, path = path, tsMs = ts, nonce = n)).toByteArray(Charsets.UTF_8)
-        val sig = creds.signer.sign(message)
-        // Düşük-S/katı DER değilse sunucu 401 verirdi; göndermeden düşür (fail closed).
-        check(Der.isCanonical(sig)) { "imza katı DER + low-S değil" }
+        val sig =
+            try {
+                creds.signer.sign(message).also {
+                    // Düşük-S/katı DER değilse sunucu 401 verirdi; göndermeden düşür (fail closed).
+                    check(Der.isCanonical(it)) { "imza katı DER + low-S değil" }
+                }
+            } catch (e: GeneralSecurityException) {
+                return ApiResult.Failed(ApiFailure.Signing(e.message ?: e.javaClass.simpleName))
+            } catch (e: RuntimeException) {
+                // Keystore ProviderException/IllegalStateException vb.: uygulama çökmez, yeniden eşleştirme önerilir.
+                return ApiResult.Failed(ApiFailure.Signing(e.message ?: e.javaClass.simpleName))
+            }
         val headers =
             mapOf(
                 "Accept" to "application/json",

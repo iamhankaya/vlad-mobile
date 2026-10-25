@@ -7,6 +7,7 @@ import dev.vlad.app.AppContainer
 import dev.vlad.app.data.PairedDevice
 import dev.vlad.core.api.ApiFailure
 import dev.vlad.core.api.ApiResult
+import dev.vlad.core.api.ClockSync
 import dev.vlad.core.api.ErrorCode
 import dev.vlad.core.api.PairRequest
 import dev.vlad.core.api.ServerAddress
@@ -26,6 +27,9 @@ enum class PairingError(val message: String) {
     UNREACHABLE("Sunucuya ulaşılamıyor. Adresi ve internetini kontrol et."),
     RATE_LIMITED("Çok fazla deneme. Biraz bekleyip tekrar dene."),
     KEY_REJECTED("Sunucu bu cihaz anahtarını kabul etmedi."),
+    CLOCK_SKEW(
+        "Cihaz saatini düzelt: sunucu saatiyle fark 5 dakikadan fazla. Saati otomatik ayarla, sunucuda yeni kod üretip tekrar dene.",
+    ),
     NO_SECURE_LOCK("Onay anahtarı için ekran kilidi (PIN, desen ya da parmak izi) gerekli. Cihaz kilidini ayarla."),
     UNEXPECTED("Eşleştirme tamamlanamadı."),
 }
@@ -87,8 +91,8 @@ class PairingViewModel(private val container: AppContainer, private val onPaired
                 PairRequest(
                     code = code,
                     deviceName = Build.MODEL.take(MAX_NAME),
-                    sessionPub = container.sessionSigner.publicKeyB64u(),
-                    approvalPub = container.approvalSigner.publicKeyB64u(),
+                    sessionPub = container.sessionSigner.also { it.provision() }.publicKeyB64u(),
+                    approvalPub = container.approvalSigner.also { it.provision() }.publicKeyB64u(),
                 )
             } catch (e: Exception) {
                 return Outcome.Failed(
@@ -98,9 +102,15 @@ class PairingViewModel(private val container: AppContainer, private val onPaired
         val before = System.currentTimeMillis()
         return when (val r = container.api(server).pair(request)) {
             is ApiResult.Ok -> {
-                val device = PairedDevice(server, r.value.deviceId, r.value.serverTime - before)
-                container.store.save(device)
-                Outcome.Paired(device)
+                // Yanıt imzasız: fark RTT/2 ile hesaplanır ve 5 dk ile sınırlıdır; aşılırsa kayıt yapılmaz.
+                val offset = ClockSync.offset(before, System.currentTimeMillis(), r.value.serverTime)
+                if (offset == null) {
+                    Outcome.Failed(PairingError.CLOCK_SKEW)
+                } else {
+                    val device = PairedDevice(server, r.value.deviceId, offset)
+                    container.store.save(device)
+                    Outcome.Paired(device)
+                }
             }
             is ApiResult.Failed -> Outcome.Failed(map(r.failure))
         }
@@ -109,7 +119,7 @@ class PairingViewModel(private val container: AppContainer, private val onPaired
     private fun map(f: ApiFailure): PairingError =
         when (f) {
             is ApiFailure.Network -> PairingError.UNREACHABLE
-            is ApiFailure.BadResponse -> PairingError.UNEXPECTED
+            is ApiFailure.BadResponse, is ApiFailure.Signing -> PairingError.UNEXPECTED
             is ApiFailure.Http ->
                 when (f.error?.code) {
                     ErrorCode.UNAUTHORIZED -> PairingError.CODE_REJECTED

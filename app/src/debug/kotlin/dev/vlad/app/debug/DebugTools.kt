@@ -1,5 +1,10 @@
 package dev.vlad.app.debug
 
+import android.content.ClipData
+import android.content.ClipDescription
+import android.content.ClipboardManager
+import android.content.Context
+import android.os.PersistableBundle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,8 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.vlad.app.AppContainer
 import dev.vlad.app.ui.theme.Spacing
@@ -37,7 +41,7 @@ object DebugTools {
     @Composable
     fun SettingsEntry(container: AppContainer) {
         var output by remember { mutableStateOf<String?>(null) }
-        val clipboard = LocalClipboardManager.current
+        val context = LocalContext.current
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.s2)) {
             Text("Hata ayıklama (yalnız debug yapısı)", style = MaterialTheme.typography.titleSmall)
             Button(
@@ -47,16 +51,29 @@ object DebugTools {
             output?.let { text ->
                 SelectionContainer { Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
                 OutlinedButton(
-                    onClick = { clipboard.setText(AnnotatedString(text)) },
+                    onClick = { copySensitive(context, text) },
                     modifier = Modifier.heightIn(min = Spacing.minTouch),
                 ) { Text("Panoya kopyala") }
             }
         }
     }
 
+    private const val FIXED_TS_MS = 1_761_350_400_000L
+
+    /** Panoya "hassas" işaretiyle (Android 13+ önizlemede gizler). */
+    private fun copySensitive(
+        context: Context,
+        text: String,
+    ) {
+        val clip = ClipData.newPlainText("vlad-vector", text)
+        clip.description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
+        (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+    }
+
     private fun exportVector(container: AppContainer): String {
         val signer = container.sessionSigner
-        val ts = System.currentTimeMillis()
+        // Sabit, geçmiş zaman damgası (sözleşme vektörleriyle aynı): dışa aktarılan çıktı sunucuda tekrar oynatılamaz.
+        val ts = FIXED_TS_MS
         val nonce = randomNonce()
         val envelope = envelopeString(EnvelopeInput("GET", "/v1/home", tsMs = ts, nonce = nonce))
         val sig = signer.newSignature()
