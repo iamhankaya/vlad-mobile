@@ -13,6 +13,8 @@ val VladJson: Json =
         ignoreUnknownKeys = true
         explicitNulls = false
         encodeDefaults = false
+        // Bilinmeyen enum değeri (yeni sunucu) decode hatası vermez: varsayılan `UNKNOWN`'a düşer, arayüz "bilinmeyen" gösterir.
+        coerceInputValues = true
     }
 
 @Serializable
@@ -52,11 +54,14 @@ enum class ErrorCode {
 
     @SerialName("active_elsewhere")
     ACTIVE_ELSEWHERE,
+
+    /** Bu istemcinin tanımadığı (daha yeni sunucu) değer. */
+    UNKNOWN,
 }
 
 @Serializable
 data class ErrorBody(
-    val code: ErrorCode,
+    val code: ErrorCode = ErrorCode.UNKNOWN,
     @SerialName("message_tr") val messageTr: String,
     val details: JsonObject? = null,
 )
@@ -110,6 +115,9 @@ enum class TaskState {
 
     @SerialName("cancelled")
     CANCELLED,
+
+    /** Bu istemcinin tanımadığı (daha yeni sunucu) değer. */
+    UNKNOWN,
 }
 
 @Serializable
@@ -124,7 +132,7 @@ data class Worker(
     val project: String,
     val title: String,
     val phase: String? = null,
-    val state: TaskState,
+    val state: TaskState = TaskState.UNKNOWN,
     val host: String? = null,
     val progress: Progress? = null,
     val updated: String,
@@ -155,6 +163,9 @@ enum class CardKind {
 
     @SerialName("gate")
     GATE,
+
+    /** Bu istemcinin tanımadığı (daha yeni sunucu) değer. */
+    UNKNOWN,
 }
 
 @Serializable
@@ -167,6 +178,9 @@ enum class CardState {
 
     @SerialName("dismissed")
     DISMISSED,
+
+    /** Bu istemcinin tanımadığı (daha yeni sunucu) değer. */
+    UNKNOWN,
 }
 
 @Serializable
@@ -193,11 +207,14 @@ enum class CardActionKind {
 
     @SerialName("tag")
     TAG,
+
+    /** Bu istemcinin tanımadığı (daha yeni sunucu) değer. */
+    UNKNOWN,
 }
 
 @Serializable
 data class CardAction(
-    val kind: CardActionKind,
+    val kind: CardActionKind = CardActionKind.UNKNOWN,
     val repo: String,
     val pr: Int? = null,
     val base: String? = null,
@@ -218,6 +235,9 @@ enum class CiState {
 
     @SerialName("none")
     NONE,
+
+    /** Bu istemcinin tanımadığı (daha yeni sunucu) değer. */
+    UNKNOWN,
 }
 
 @Serializable
@@ -233,7 +253,7 @@ enum class ReviewVerdict {
 }
 
 @Serializable
-data class GateReview(val source: String, val verdict: ReviewVerdict, val summary: String? = null)
+data class GateReview(val source: String, val verdict: ReviewVerdict = ReviewVerdict.UNKNOWN, val summary: String? = null)
 
 @Serializable
 data class GateInfo(
@@ -241,7 +261,7 @@ data class GateInfo(
     val phase: String? = null,
     val pr: PullRequestRef? = null,
     @SerialName("head_sha") val headSha: String,
-    val ci: CiState,
+    val ci: CiState = CiState.UNKNOWN,
     val mergeable: Boolean? = null,
     @SerialName("report_md") val reportMd: String,
     @SerialName("merge_kind") val mergeKind: CardActionKind? = null,
@@ -251,10 +271,10 @@ data class GateInfo(
 @Serializable
 data class Card(
     val id: String,
-    val kind: CardKind,
+    val kind: CardKind = CardKind.UNKNOWN,
     val project: String,
     val task: String? = null,
-    val state: CardState,
+    val state: CardState = CardState.UNKNOWN,
     val title: String,
     val options: List<CardOption>,
     val answer: CardAnswer? = null,
@@ -286,7 +306,7 @@ data class Task(
     val project: String,
     val title: String,
     val kind: String,
-    val state: TaskState,
+    val state: TaskState = TaskState.UNKNOWN,
     val autonomy: String,
     val role: String? = null,
     val parent: String? = null,
@@ -305,7 +325,7 @@ data class Task(
 data class PipelineNode(
     @SerialName("task_id") val taskId: String,
     val title: String,
-    val state: TaskState,
+    val state: TaskState = TaskState.UNKNOWN,
     val phase: String? = null,
     val role: String? = null,
     @SerialName("depends_on") val dependsOn: List<String>,
@@ -317,7 +337,7 @@ data class Pipeline(
     @SerialName("task_id") val taskId: String,
     val project: String,
     val title: String,
-    val state: TaskState,
+    val state: TaskState = TaskState.UNKNOWN,
     val phases: List<PipelineNode>,
 )
 
@@ -544,10 +564,13 @@ enum class EventType(val wire: String) {
 
     @SerialName("quota.changed")
     QUOTA_CHANGED("quota.changed"),
+
+    /** Bu istemcinin tanımadığı olay türü. */
+    UNKNOWN("unknown"),
 }
 
 @Serializable
-data class Event(val seq: Long, val type: EventType, val data: JsonObject)
+data class Event(val seq: Long, val type: EventType = EventType.UNKNOWN, val data: JsonObject)
 
 @Serializable
 data class EventList(
